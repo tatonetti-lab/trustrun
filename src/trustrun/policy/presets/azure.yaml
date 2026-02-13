@@ -1,0 +1,44 @@
+name: azure-baa
+description: Azure BAA-covered endpoints
+rules:
+  - match: "*.openai.azure.com"
+    action: alert
+    reason: "Azure OpenAI Service (BAA-covered)"
+  - match: "*.cognitiveservices.azure.com"
+    action: alert
+    reason: "Azure Cognitive Services (BAA-covered)"
+  - match: "*.azure.com"
+    action: alert
+    reason: "Azure service endpoint (BAA-covered)"
+  - match: "*.windows.net"
+    action: alert
+    reason: "Azure Storage / SQL (BAA-covered)"
+  - match: "*.database.windows.net"
+    action: alert
+    reason: "Azure SQL Database (BAA-covered)"
+  - match: "*.blob.core.windows.net"
+    action: alert
+    reason: "Azure Blob Storage (BAA-covered)"
+  - match: "*.table.core.windows.net"
+    action: alert
+    reason: "Azure Table Storage (BAA-covered)"
+  - match: "*.queue.core.windows.net"
+    action: alert
+    reason: "Azure Queue Storage (BAA-covered)"
+  - match: "*.vault.azure.net"
+    action: alert
+    reason: "Azure Key Vault (BAA-covered)"
+  - match: "*.servicebus.windows.net"
+    action: alert
+    reason: "Azure Service Bus (BAA-covered)"
+  - match: "*.azure-api.net"
+    action: alert
+    reason: "Azure API Management (BAA-covered)"
+  - match: "*.azurecr.io"
+    action: alert
+    reason: "Azure Container Registry (BAA-covered)"
+  - match: "*.azurewebsites.net"
+    action: alert
+    reason: "Azure App Service (BAA-covered)"
+defaults:
+  action: alert

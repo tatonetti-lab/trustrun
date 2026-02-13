@@ -1,0 +1,20 @@
+name: test-hipaa
+description: Test policy for unit tests
+capture_level: metadata
+inherit:
+  - preset:azure
+rules:
+  - match: "*.openai.com"
+    action: block
+    reason: "Direct OpenAI API bypasses BAA"
+  - match: "*.example.com"
+    action: alert
+    reason: "Example domain allowed"
+  - match: "10.0.0.0/8"
+    action: alert
+    reason: "Private network"
+  - match: "*.suspicious.io"
+    action: kill
+    reason: "Known bad actor"
+defaults:
+  action: alert

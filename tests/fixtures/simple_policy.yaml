@@ -1,0 +1,11 @@
+name: simple-test
+description: Simple policy without inheritance
+rules:
+  - match: "*.allowed.com"
+    action: alert
+    reason: "Allowed endpoint"
+  - match: "*.blocked.com"
+    action: block
+    reason: "Blocked endpoint"
+defaults:
+  action: alert

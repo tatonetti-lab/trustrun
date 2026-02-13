@@ -1,0 +1,55 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "trustrun"
+version = "0.1.0"
+description = "Network trust verification for HIPAA-sensitive environments"
+requires-python = ">=3.10"
+license = "MIT"
+dependencies = [
+    "click>=8.1",
+    "psutil>=5.9",
+    "pyyaml>=6.0",
+    "rich>=13.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0",
+    "pytest-asyncio>=0.21",
+    "ruff>=0.1",
+    "mypy>=1.0",
+]
+web = [
+    "fastapi>=0.100",
+    "uvicorn[standard]>=0.23",
+    "aiosqlite>=0.19",
+]
+capture = [
+    "scapy>=2.5",
+]
+
+[project.scripts]
+trustrun = "trustrun.cli:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/trustrun"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
+
+[tool.ruff]
+src = ["src"]
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "N", "W", "UP"]
+
+[tool.mypy]
+python_version = "3.10"
+warn_return_any = true
+warn_unused_configs = true
+mypy_path = "src"

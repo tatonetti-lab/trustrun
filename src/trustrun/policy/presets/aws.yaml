@@ -1,0 +1,44 @@
+name: aws-baa
+description: AWS BAA-covered endpoints
+rules:
+  - match: "*.bedrock.*.amazonaws.com"
+    action: alert
+    reason: "AWS Bedrock (BAA-eligible)"
+  - match: "*.healthlake.*.amazonaws.com"
+    action: alert
+    reason: "AWS HealthLake (BAA-eligible)"
+  - match: "*.comprehendmedical.*.amazonaws.com"
+    action: alert
+    reason: "AWS Comprehend Medical (BAA-eligible)"
+  - match: "*.sagemaker.*.amazonaws.com"
+    action: alert
+    reason: "AWS SageMaker (BAA-eligible)"
+  - match: "*.s3.amazonaws.com"
+    action: alert
+    reason: "AWS S3 (BAA-eligible)"
+  - match: "*.s3.*.amazonaws.com"
+    action: alert
+    reason: "AWS S3 regional (BAA-eligible)"
+  - match: "*.rds.amazonaws.com"
+    action: alert
+    reason: "AWS RDS (BAA-eligible)"
+  - match: "*.rds.*.amazonaws.com"
+    action: alert
+    reason: "AWS RDS regional (BAA-eligible)"
+  - match: "*.lambda.*.amazonaws.com"
+    action: alert
+    reason: "AWS Lambda (BAA-eligible)"
+  - match: "*.dynamodb.*.amazonaws.com"
+    action: alert
+    reason: "AWS DynamoDB (BAA-eligible)"
+  - match: "*.kms.*.amazonaws.com"
+    action: alert
+    reason: "AWS KMS (BAA-eligible)"
+  - match: "*.secretsmanager.*.amazonaws.com"
+    action: alert
+    reason: "AWS Secrets Manager (BAA-eligible)"
+  - match: "*.amazonaws.com"
+    action: alert
+    reason: "AWS service endpoint (BAA-eligible)"
+defaults:
+  action: alert

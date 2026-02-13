@@ -1,0 +1,294 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TrustRun — Network Trust Verification</title>
+    <script src="https://unpkg.com/htmx.org@1.9.10"></script>
+    <style>
+        :root {
+            --bg: #0f1117;
+            --surface: #1a1d27;
+            --border: #2a2d3a;
+            --text: #e4e4e7;
+            --muted: #71717a;
+            --accent: #3b82f6;
+            --green: #22c55e;
+            --yellow: #eab308;
+            --red: #ef4444;
+        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'SF Mono', 'Cascadia Code', 'Fira Code', monospace;
+            background: var(--bg);
+            color: var(--text);
+            font-size: 14px;
+            line-height: 1.6;
+        }
+        .container { max-width: 1200px; margin: 0 auto; padding: 20px; }
+        header {
+            border-bottom: 1px solid var(--border);
+            padding: 16px 0;
+            margin-bottom: 24px;
+        }
+        header h1 { font-size: 18px; font-weight: 600; }
+        header h1 span { color: var(--accent); }
+        nav { display: flex; gap: 16px; margin-top: 12px; }
+        nav a {
+            color: var(--muted);
+            text-decoration: none;
+            padding: 4px 8px;
+            border-radius: 4px;
+            transition: all 0.15s;
+        }
+        nav a:hover, nav a.active { color: var(--text); background: var(--surface); }
+        .card {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 16px;
+            margin-bottom: 16px;
+        }
+        .card h2 { font-size: 14px; color: var(--muted); margin-bottom: 12px; text-transform: uppercase; letter-spacing: 0.05em; }
+        table { width: 100%; border-collapse: collapse; }
+        th { text-align: left; color: var(--muted); font-weight: 500; padding: 8px; border-bottom: 1px solid var(--border); }
+        td { padding: 8px; border-bottom: 1px solid var(--border); }
+        tr:hover { background: rgba(59, 130, 246, 0.05); }
+        .badge {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: 500;
+        }
+        .badge-running { background: rgba(34, 197, 94, 0.15); color: var(--green); }
+        .badge-stopped { background: rgba(113, 113, 122, 0.15); color: var(--muted); }
+        .badge-error { background: rgba(239, 68, 68, 0.15); color: var(--red); }
+        .badge-critical { background: rgba(239, 68, 68, 0.15); color: var(--red); }
+        .badge-warning { background: rgba(234, 179, 8, 0.15); color: var(--yellow); }
+        .badge-info { background: rgba(59, 130, 246, 0.15); color: var(--accent); }
+        .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; margin-bottom: 24px; }
+        .stat-card {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 16px;
+        }
+        .stat-card .label { color: var(--muted); font-size: 12px; text-transform: uppercase; }
+        .stat-card .value { font-size: 24px; font-weight: 600; margin-top: 4px; }
+        #content { min-height: 400px; }
+        .empty { text-align: center; color: var(--muted); padding: 48px; }
+        a { color: var(--accent); text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        .mono { font-family: inherit; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1><span>TrustRun</span> — Network Trust Verification</h1>
+            <nav>
+                <a href="/" class="active" onclick="loadDashboard(event)">Dashboard</a>
+                <a href="/sessions" onclick="loadSessions(event)">Sessions</a>
+                <a href="/scans" onclick="loadScans(event)">Scans</a>
+                <a href="/policies" onclick="loadPolicies(event)">Policies</a>
+            </nav>
+        </header>
+        <div id="content">
+            <div class="empty">Loading...</div>
+        </div>
+    </div>
+    <script>
+        async function api(path) {
+            const resp = await fetch('/api' + path);
+            return resp.json();
+        }
+
+        function escapeHtml(s) {
+            const div = document.createElement('div');
+            div.textContent = s;
+            return div.innerHTML;
+        }
+
+        async function loadDashboard(e) {
+            if (e) e.preventDefault();
+            const [sessions, scans] = await Promise.all([
+                api('/sessions'), api('/scans')
+            ]);
+            const running = sessions.filter(s => s.status === 'running').length;
+            const totalViolations = sessions.length; // simplified
+            document.getElementById('content').innerHTML = `
+                <div class="stats">
+                    <div class="stat-card">
+                        <div class="label">Total Sessions</div>
+                        <div class="value">${sessions.length}</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="label">Running</div>
+                        <div class="value" style="color:var(--green)">${running}</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="label">Scans</div>
+                        <div class="value">${scans.length}</div>
+                    </div>
+                </div>
+                <div class="card">
+                    <h2>Recent Sessions</h2>
+                    ${sessions.length === 0 ? '<p class="empty">No sessions yet</p>' : renderSessionsTable(sessions.slice(0, 10))}
+                </div>
+            `;
+            setActiveNav('/');
+        }
+
+        function renderSessionsTable(sessions) {
+            return `<table>
+                <tr><th>ID</th><th>PID</th><th>Policy</th><th>Status</th><th>Started</th></tr>
+                ${sessions.map(s => `<tr>
+                    <td><a href="#" onclick="loadSession('${s.id}',event)">${s.id}</a></td>
+                    <td>${s.pid}</td>
+                    <td>${escapeHtml(s.policy_name)}</td>
+                    <td><span class="badge badge-${s.status}">${s.status}</span></td>
+                    <td>${new Date(s.start_time * 1000).toLocaleString()}</td>
+                </tr>`).join('')}
+            </table>`;
+        }
+
+        async function loadSessions(e) {
+            if (e) e.preventDefault();
+            const sessions = await api('/sessions');
+            document.getElementById('content').innerHTML = `
+                <div class="card">
+                    <h2>All Sessions</h2>
+                    ${sessions.length === 0 ? '<p class="empty">No sessions yet</p>' : renderSessionsTable(sessions)}
+                </div>
+            `;
+            setActiveNav('/sessions');
+        }
+
+        async function loadSession(id, e) {
+            if (e) e.preventDefault();
+            const session = await api('/sessions/' + id);
+            const events = session.events || [];
+            const violations = session.violations || [];
+            document.getElementById('content').innerHTML = `
+                <div class="card">
+                    <h2>Session ${escapeHtml(session.id)}</h2>
+                    <table>
+                        <tr><th>PID</th><td>${session.pid}</td></tr>
+                        <tr><th>Command</th><td>${escapeHtml(session.command || 'N/A')}</td></tr>
+                        <tr><th>Policy</th><td>${escapeHtml(session.policy_name)}</td></tr>
+                        <tr><th>Status</th><td><span class="badge badge-${session.status}">${session.status}</span></td></tr>
+                        <tr><th>Events</th><td>${events.length}</td></tr>
+                        <tr><th>Violations</th><td style="color:${violations.length ? 'var(--red)' : 'var(--green)'}">${violations.length}</td></tr>
+                    </table>
+                </div>
+                <div class="card">
+                    <h2>Violations (${violations.length})</h2>
+                    ${violations.length === 0 ? '<p class="empty">No violations</p>' : `<table>
+                        <tr><th>Action</th><th>Rule</th><th>Target</th><th>Reason</th></tr>
+                        ${violations.map(v => `<tr>
+                            <td><span class="badge badge-${v.action === 'block' || v.action === 'kill' ? 'critical' : 'warning'}">${v.action}</span></td>
+                            <td class="mono">${escapeHtml(v.rule_match)}</td>
+                            <td>${escapeHtml(v.event_id)}</td>
+                            <td>${escapeHtml(v.reason)}</td>
+                        </tr>`).join('')}
+                    </table>`}
+                </div>
+                <div class="card">
+                    <h2>Connection Events (${events.length})</h2>
+                    ${events.length === 0 ? '<p class="empty">No events</p>' : `<table>
+                        <tr><th>Process</th><th>Remote</th><th>Hostname</th><th>Protocol</th><th>Time</th></tr>
+                        ${events.map(ev => `<tr>
+                            <td>${escapeHtml(ev.process_name)}</td>
+                            <td class="mono">${escapeHtml(ev.remote_ip)}:${ev.remote_port}</td>
+                            <td>${escapeHtml(ev.hostname || '-')}</td>
+                            <td>${ev.protocol}</td>
+                            <td>${new Date(ev.timestamp * 1000).toLocaleTimeString()}</td>
+                        </tr>`).join('')}
+                    </table>`}
+                </div>
+            `;
+        }
+
+        async function loadScans(e) {
+            if (e) e.preventDefault();
+            const scans = await api('/scans');
+            document.getElementById('content').innerHTML = `
+                <div class="card">
+                    <h2>Scan Results</h2>
+                    ${scans.length === 0 ? '<p class="empty">No scans yet</p>' : `<table>
+                        <tr><th>ID</th><th>Directory</th><th>Files</th><th>Policy</th><th>Duration</th><th>Date</th></tr>
+                        ${scans.map(s => `<tr>
+                            <td><a href="#" onclick="loadScan('${s.id}',event)">${s.id}</a></td>
+                            <td>${escapeHtml(s.directory)}</td>
+                            <td>${s.files_scanned}</td>
+                            <td>${escapeHtml(s.policy_name || 'none')}</td>
+                            <td>${s.duration.toFixed(2)}s</td>
+                            <td>${new Date(s.timestamp * 1000).toLocaleString()}</td>
+                        </tr>`).join('')}
+                    </table>`}
+                </div>
+            `;
+            setActiveNav('/scans');
+        }
+
+        async function loadScan(id, e) {
+            if (e) e.preventDefault();
+            const scan = await api('/scans/' + id);
+            const findings = scan.findings || [];
+            document.getElementById('content').innerHTML = `
+                <div class="card">
+                    <h2>Scan ${escapeHtml(scan.id)}</h2>
+                    <table>
+                        <tr><th>Directory</th><td>${escapeHtml(scan.directory)}</td></tr>
+                        <tr><th>Files Scanned</th><td>${scan.files_scanned}</td></tr>
+                        <tr><th>Duration</th><td>${scan.duration.toFixed(2)}s</td></tr>
+                        <tr><th>Findings</th><td>${findings.length}</td></tr>
+                    </table>
+                </div>
+                <div class="card">
+                    <h2>Findings (${findings.length})</h2>
+                    ${findings.length === 0 ? '<p class="empty">No findings</p>' : `<table>
+                        <tr><th>Severity</th><th>File</th><th>Line</th><th>Pattern</th><th>Match</th></tr>
+                        ${findings.map(f => `<tr>
+                            <td><span class="badge badge-${f.severity}">${f.severity}</span></td>
+                            <td>${escapeHtml(f.file_path)}</td>
+                            <td>${f.line}</td>
+                            <td>${escapeHtml(f.pattern_name)}</td>
+                            <td class="mono">${escapeHtml(f.matched_text.substring(0, 50))}</td>
+                        </tr>`).join('')}
+                    </table>`}
+                </div>
+            `;
+        }
+
+        async function loadPolicies(e) {
+            if (e) e.preventDefault();
+            const policies = await api('/policies');
+            document.getElementById('content').innerHTML = `
+                <div class="card">
+                    <h2>Policies</h2>
+                    ${policies.length === 0 ? '<p class="empty">No policies stored yet</p>' : `<table>
+                        <tr><th>Name</th><th>Description</th><th>Updated</th></tr>
+                        ${policies.map(p => `<tr>
+                            <td>${escapeHtml(p.name)}</td>
+                            <td>${escapeHtml(p.description || '-')}</td>
+                            <td>${new Date(p.updated_at * 1000).toLocaleString()}</td>
+                        </tr>`).join('')}
+                    </table>`}
+                </div>
+            `;
+            setActiveNav('/policies');
+        }
+
+        function setActiveNav(path) {
+            document.querySelectorAll('nav a').forEach(a => {
+                a.classList.toggle('active', a.getAttribute('href') === path);
+            });
+        }
+
+        // Load dashboard on start
+        loadDashboard();
+    </script>
+</body>
+</html>
