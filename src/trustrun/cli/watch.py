@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import signal
 import sys
+import threading
 
 import click
 from rich.console import Console
@@ -13,6 +14,7 @@ from trustrun.policy.loader import load_policy
 from trustrun.policy.models import Action, Policy, PolicyDefaults
 from trustrun.session.manager import SessionManager
 from trustrun.session.models import ConnectionEvent, Violation
+from trustrun.tui.policy_mutator import merge_overrides
 
 console = Console(stderr=True)
 
@@ -28,12 +30,24 @@ def _default_policy() -> Policy:
 
 @click.command()
 @click.argument("pid", type=int)
+@click.option("--no-tui", is_flag=True, help="Disable interactive TUI.")
 @click.pass_context
-def watch(ctx: click.Context, pid: int) -> None:
+def watch(ctx: click.Context, pid: int, no_tui: bool) -> None:
     """Monitor network connections of a running process."""
     policy_path = ctx.obj.get("policy_path")
     policy = load_policy(policy_path) if policy_path else _default_policy()
+    policy = merge_overrides(policy)
 
+    use_tui = sys.stderr.isatty() and not no_tui
+
+    if use_tui:
+        _run_with_tui(policy, pid)
+    else:
+        _run_plain(policy, pid)
+
+
+def _run_plain(policy: Policy, pid: int) -> None:
+    """Original streaming log output."""
     console.print(
         f"[bold]TrustRun[/bold] watching PID {pid} with policy "
         f"[cyan]{policy.name}[/cyan]"
@@ -91,6 +105,38 @@ def watch(ctx: click.Context, pid: int) -> None:
         manager.monitor_loop()
     except KeyboardInterrupt:
         manager.stop()
+
+    _print_summary(manager)
+
+
+def _run_with_tui(policy: Policy, pid: int) -> None:
+    """Interactive htop-style TUI mode."""
+    from trustrun.tui import TuiApp, TuiState
+
+    state = TuiState(policy=policy, pid=pid)
+
+    def on_event(event: ConnectionEvent) -> None:
+        state.add_event(event)
+
+    def on_violation(violation: Violation) -> None:
+        state.add_violation(violation)
+
+    manager = SessionManager(
+        policy=policy,
+        on_event=on_event,
+        on_violation=on_violation,
+    )
+
+    manager.watch(pid)
+    state.sniffer_active = manager.capture_sniffer_active
+
+    monitor_thread = threading.Thread(target=manager.monitor_loop, daemon=True)
+    monitor_thread.start()
+
+    app = TuiApp(state=state, manager=manager)
+    app.run()
+
+    monitor_thread.join(timeout=2)
 
     _print_summary(manager)
 

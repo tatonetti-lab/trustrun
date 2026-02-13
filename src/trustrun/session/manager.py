@@ -34,6 +34,7 @@ class SessionManager:
     ) -> None:
         self._policy = policy
         self._evaluator = PolicyEvaluator(policy)
+        self._policy_lock = threading.Lock()
         self._poll_interval = poll_interval
         self._on_event = on_event
         self._on_violation = on_violation
@@ -48,9 +49,23 @@ class SessionManager:
         return self._session
 
     @property
+    def policy(self) -> Policy:
+        """Current policy (read under lock for thread safety)."""
+        with self._policy_lock:
+            return self._policy
+
+    @property
     def capture_sniffer_active(self) -> bool:
         """Whether the passive DNS/SNI sniffer is running."""
         return self._capture.sniffer_active
+
+    def swap_policy(self, policy: Policy) -> None:
+        """Hot-swap the policy and evaluator (thread-safe)."""
+        evaluator = PolicyEvaluator(policy)
+        with self._policy_lock:
+            self._policy = policy
+            self._evaluator = evaluator
+        logger.info("Policy swapped to '%s' (%d rules)", policy.name, len(policy.rules))
 
     def watch(self, pid: int) -> Session:
         """Attach to an existing process by PID."""
@@ -132,6 +147,8 @@ class SessionManager:
                 self._subprocess.kill()
 
     def _poll_and_evaluate(self) -> None:
+        with self._policy_lock:
+            evaluator = self._evaluator
         events = self._capture.poll()
         for event in events:
             if self._session is not None:
@@ -140,7 +157,7 @@ class SessionManager:
             if self._on_event:
                 self._on_event(event)
 
-            verdict = self._evaluator.evaluate(
+            verdict = evaluator.evaluate(
                 ip=event.remote_ip,
                 hostname=event.hostname,
                 port=event.remote_port,

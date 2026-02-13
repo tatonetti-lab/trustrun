@@ -148,3 +148,101 @@ def test_session_records_events_and_violations(mock_capture_cls: MagicMock):
     assert len(session.events) == 1
     # Default alert action on unmatched → violation
     assert len(session.violations) == 1
+
+
+@patch("trustrun.session.manager.PsutilCapture")
+def test_swap_policy(mock_capture_cls: MagicMock):
+    """swap_policy should replace the policy and evaluator."""
+    capture = MagicMock()
+    capture.is_running = True
+    mock_capture_cls.return_value = capture
+
+    # Start with a policy that blocks everything by default
+    policy1 = Policy(
+        name="block-all",
+        rules=(),
+        defaults=PolicyDefaults(action=Action.BLOCK),
+    )
+
+    violations_seen: list = []
+    manager = SessionManager(
+        policy=policy1,
+        poll_interval=0.01,
+        on_violation=lambda v: violations_seen.append(v),
+    )
+    manager.watch(pid=1234)
+
+    call_count = 0
+
+    def mock_poll():
+        nonlocal call_count
+        call_count += 1
+        if call_count == 1:
+            # First poll: should produce violation (block-all default)
+            return [_make_event("1.2.3.4", 443, "api.test.com")]
+        if call_count == 2:
+            # Swap to a policy that allows *.test.com
+            policy2 = Policy(
+                name="allow-test",
+                rules=(Rule(match="*.test.com", action=Action.ALERT),),
+                defaults=PolicyDefaults(action=Action.BLOCK),
+            )
+            manager.swap_policy(policy2)
+            return []
+        if call_count == 3:
+            # Third poll: same destination — should NOT be a violation now
+            return [_make_event("1.2.3.4", 443, "api.test.com")]
+        manager.stop()
+        return []
+
+    capture.poll.side_effect = mock_poll
+    manager.monitor_loop()
+
+    # Only the first event should produce a violation
+    assert len(violations_seen) == 1
+    assert violations_seen[0].action == "block"
+
+    # Policy property should return the swapped policy
+    assert manager.policy.name == "allow-test"
+
+
+@patch("trustrun.session.manager.PsutilCapture")
+def test_swap_policy_thread_safety(mock_capture_cls: MagicMock):
+    """swap_policy from another thread should not cause errors."""
+    capture = MagicMock()
+    capture.is_running = True
+    capture.poll.return_value = []
+    mock_capture_cls.return_value = capture
+
+    policy = Policy(
+        name="test",
+        rules=(),
+        defaults=PolicyDefaults(action=Action.ALERT),
+    )
+    manager = SessionManager(policy=policy, poll_interval=0.01)
+    manager.watch(pid=1234)
+
+    swap_errors: list[Exception] = []
+
+    def swapper():
+        import time
+        for i in range(20):
+            try:
+                new_policy = Policy(
+                    name=f"policy-{i}",
+                    rules=(Rule(match=f"*.domain{i}.com", action=Action.ALERT),),
+                    defaults=PolicyDefaults(action=Action.ALERT),
+                )
+                manager.swap_policy(new_policy)
+            except Exception as e:
+                swap_errors.append(e)
+            time.sleep(0.005)
+        manager.stop()
+
+    t = threading.Thread(target=swapper)
+    t.start()
+
+    manager.monitor_loop()
+    t.join()
+
+    assert not swap_errors

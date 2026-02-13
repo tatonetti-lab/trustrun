@@ -13,6 +13,7 @@ from trustrun.policy.loader import load_policy
 from trustrun.policy.models import Action, Policy, PolicyDefaults
 from trustrun.session.manager import SessionManager
 from trustrun.session.models import ConnectionEvent, Violation
+from trustrun.tui.policy_mutator import merge_overrides
 
 console = Console(stderr=True)
 
@@ -28,12 +29,24 @@ def _default_policy() -> Policy:
 
 @click.command()
 @click.argument("command", nargs=-1, required=True)
+@click.option("--no-tui", is_flag=True, help="Disable interactive TUI.")
 @click.pass_context
-def run(ctx: click.Context, command: tuple[str, ...]) -> None:
+def run(ctx: click.Context, command: tuple[str, ...], no_tui: bool) -> None:
     """Launch a command and monitor its network connections."""
     policy_path = ctx.obj.get("policy_path")
     policy = load_policy(policy_path) if policy_path else _default_policy()
+    policy = merge_overrides(policy)
 
+    use_tui = sys.stderr.isatty() and not no_tui
+
+    if use_tui:
+        _run_with_tui(policy, command)
+    else:
+        _run_plain(policy, command)
+
+
+def _run_plain(policy: Policy, command: tuple[str, ...]) -> None:
+    """Original streaming log output."""
     console.print(
         f"[bold]TrustRun[/bold] running [cyan]{' '.join(command)}[/cyan] "
         f"with policy [cyan]{policy.name}[/cyan]"
@@ -98,6 +111,48 @@ def run(ctx: click.Context, command: tuple[str, ...]) -> None:
     _print_summary(manager)
 
     # Exit with subprocess return code
+    rc = manager.get_subprocess_returncode()
+    if session := manager.session:
+        if session.violations:
+            console.print(
+                f"\n[yellow]⚠ {len(session.violations)} violation(s) detected[/yellow]"
+            )
+            sys.exit(rc if rc and rc != 0 else 1)
+    sys.exit(rc or 0)
+
+
+def _run_with_tui(policy: Policy, command: tuple[str, ...]) -> None:
+    """Interactive htop-style TUI mode."""
+    from trustrun.tui import TuiApp, TuiState
+
+    state = TuiState(policy=policy, pid=0, command=" ".join(command))
+
+    def on_event(event: ConnectionEvent) -> None:
+        state.add_event(event)
+
+    def on_violation(violation: Violation) -> None:
+        state.add_violation(violation)
+
+    manager = SessionManager(
+        policy=policy,
+        on_event=on_event,
+        on_violation=on_violation,
+    )
+
+    session = manager.run(list(command))
+    state.pid = session.pid
+    state.sniffer_active = manager.capture_sniffer_active
+
+    monitor_thread = threading.Thread(target=manager.monitor_loop, daemon=True)
+    monitor_thread.start()
+
+    app = TuiApp(state=state, manager=manager)
+    app.run()
+
+    monitor_thread.join(timeout=2)
+
+    _print_summary(manager)
+
     rc = manager.get_subprocess_returncode()
     if session := manager.session:
         if session.violations:
