@@ -4,6 +4,8 @@ Network trust verification for HIPAA-sensitive environments.
 
 TrustRun monitors process network activity at runtime and statically analyzes codebases to ensure all connections go only to authorized endpoints. It's built for medical/clinical AI teams who need to verify that no PHI/PII leaks to unauthorized destinations — for example, confirming that LLM calls route through a BAA-covered Azure endpoint rather than directly to a public API.
 
+![TrustRun interactive TUI monitoring a process](screenshot.jpg)
+
 ## How It Works
 
 **Runtime monitoring** — Attach to a running process or launch one under supervision. TrustRun polls connections via psutil and, with elevated privileges, passively captures DNS responses and TLS SNI to resolve the actual hostnames being contacted.
