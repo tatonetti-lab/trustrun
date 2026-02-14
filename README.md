@@ -12,7 +12,7 @@ TrustRun monitors process network activity at runtime and statically analyzes co
 
 **Static analysis** — Scan a codebase for hardcoded URLs, IP addresses, API keys, and SDK client configurations across Python, JavaScript, and other languages.
 
-**Policy enforcement** — Define allowed destinations with YAML policy files. Built-in presets cover BAA-covered Azure and AWS services. Violations trigger alerts, connection blocks, or process termination.
+**Policy evaluation** — Define allowed destinations with YAML policy files. Built-in presets cover BAA-covered Azure and AWS services. Connections that don't match any allow rule are flagged as violations.
 
 ## Quick Start
 
@@ -21,7 +21,7 @@ TrustRun monitors process network activity at runtime and statically analyzes co
 python -m venv .venv && source .venv/bin/activate
 pip install -e ".[dev]"
 
-# Optional: enable DNS/SNI hostname resolution
+# Optional: enable DNS/SNI hostname resolution (requires sudo at runtime)
 pip install -e ".[capture]"
 ```
 
@@ -43,13 +43,6 @@ sudo .venv/bin/trustrun run -- python my_app.py
 ```bash
 # Scan a codebase for network endpoints and secrets
 trustrun scan ./my-project
-```
-
-### Web UI
-
-```bash
-pip install -e ".[web]"
-trustrun server    # http://127.0.0.1:8470
 ```
 
 ## Policy Files
@@ -78,6 +71,8 @@ Apply a policy with the `--policy` flag:
 ```bash
 trustrun run --policy policy.yaml -- python my_app.py
 ```
+
+**Note:** User policy files may reference internal hostnames. They are excluded from version control via `.gitignore` — treat them as sensitive.
 
 ## Example Output
 
@@ -112,9 +107,27 @@ src/trustrun/
 ├── scanner/       # Static code analysis (Python, JS, generic)
 ├── session/       # Monitoring session lifecycle
 ├── actions/       # Violation response (alert, block, kill)
-├── storage/       # SQLite persistence
-└── web/           # FastAPI web UI with WebSocket streaming
+├── storage/       # SQLite persistence layer
+├── tui/           # Interactive terminal UI for run/watch
+└── web/           # FastAPI REST API (frontend in progress)
 ```
+
+## Current Status
+
+**Working:**
+- Runtime monitoring via `trustrun run` and `trustrun watch` with interactive TUI
+- Policy engine with YAML loading, preset inheritance (azure, aws), glob/CIDR matching
+- Static code analysis via `trustrun scan` (Python AST + regex, JavaScript, generic patterns)
+- Policy learning mode (`trustrun learn`) — observe traffic then generate a policy
+- Passive DNS/SNI hostname enrichment (with elevated privileges)
+- IP-to-organization resolution (built-in CIDR map, reverse DNS, whois fallback)
+- Alert action on policy violations
+
+**Not yet functional:**
+- Block and kill enforcement actions (code exists but not wired to the violation handler)
+- Headers/full capture levels (only metadata level is implemented)
+- Web UI (API endpoints exist but CLI doesn't persist sessions to the database; frontend is a shell)
+- Platform-specific capture modules (linux.py, macos.py exist but aren't used; psutil backend handles both)
 
 ## Development
 
@@ -136,14 +149,14 @@ mypy src/
 - The web UI binds to **127.0.0.1 only** — never 0.0.0.0.
 - Captured payloads may contain PHI and are stored locally only.
 - No telemetry, no phoning home, no update checks. TrustRun itself must pass its own policy.
-- Policy files may reference internal hostnames — treat them as sensitive.
+- Policy files may reference internal hostnames — treat them as sensitive and don't commit them.
 
 ## Platform Support
 
 | Platform | Unprivileged | Elevated (sudo) |
 |----------|-------------|-----------------|
-| **macOS** | psutil + lsof | BPF via scapy, DNS/SNI capture |
-| **Linux** | psutil + /proc/net | libpcap via scapy, DNS/SNI capture |
+| **macOS** | psutil connection polling | DNS/SNI capture via scapy |
+| **Linux** | psutil connection polling | DNS/SNI capture via scapy |
 
 ## License
 

@@ -8,3 +8,8 @@ __pycache__/
 dist/
 build/
 *.db
+
+# User policy files (may contain internal hostnames — treat as sensitive)
+policies/
+policy.yaml
+*.policy.yaml

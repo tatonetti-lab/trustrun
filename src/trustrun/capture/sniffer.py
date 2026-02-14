@@ -93,7 +93,7 @@ class PassiveSniffer:
             elif packet.haslayer(TCP):
                 self._handle_tls(packet)
         except Exception:
-            pass
+            logger.debug("Error handling packet", exc_info=True)
 
     def _handle_dns(self, packet: Any) -> None:
         """Extract IP→hostname mappings from DNS response A/AAAA records."""
@@ -133,7 +133,7 @@ class PassiveSniffer:
                     self._dns_cache[rdata] = hostname
 
         except Exception:
-            pass
+            logger.debug("Error parsing DNS response", exc_info=True)
 
     def _handle_tls(self, packet: Any) -> None:
         """Extract SNI hostname from TLS ClientHello packets."""
@@ -167,7 +167,7 @@ class PassiveSniffer:
                 self._sni_cache[(dst_ip, dst_port)] = sni
 
         except Exception:
-            pass
+            logger.debug("Error parsing TLS ClientHello", exc_info=True)
 
     @staticmethod
     def _parse_sni_from_client_hello(data: bytes) -> str | None:

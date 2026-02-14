@@ -49,13 +49,14 @@ class BlockAction:
 
     def cleanup(self) -> None:
         """Remove all temporary firewall rules."""
+        count = len(self._blocked_ips)
         for ip in list(self._blocked_ips):
             if self._system == "Linux":
                 self._unblock_iptables(ip)
             elif self._system == "Darwin":
                 self._unblock_pf(ip)
         self._blocked_ips.clear()
-        logger.info("Cleaned up %d firewall rules", len(self._blocked_ips))
+        logger.info("Cleaned up %d firewall rules", count)
 
     def _block_iptables(self, ip: str) -> bool:
         try:
