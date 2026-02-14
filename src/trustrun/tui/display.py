@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import time
-from datetime import timedelta
+from datetime import datetime, timedelta
 
 from rich.layout import Layout
 from rich.panel import Panel
@@ -78,7 +78,7 @@ class TuiDisplay:
             padding=(0, 1),
         )
         table.add_column("#", width=4, justify="right")
-        table.add_column("Process", width=12, no_wrap=True)
+        table.add_column("Time", width=19, no_wrap=True)
         table.add_column("Destination", ratio=1, no_wrap=True)
         table.add_column("Port", width=6, justify="right")
         table.add_column("Org", width=16, no_wrap=True)
@@ -111,7 +111,9 @@ class TuiDisplay:
 
             dest = event.hostname or event.remote_ip
             org = _truncate(event.org, 16)
-            proc = _truncate(event.process_name, 12)
+            ts = datetime.fromtimestamp(event.timestamp).strftime(
+                "%Y-%m-%d %H:%M:%S"
+            )
 
             prefix = ">" if is_cursor else " "
             num_str = f"{prefix}{row_num}"
@@ -124,7 +126,7 @@ class TuiDisplay:
                 style = ""
 
             table.add_row(
-                num_str, proc, dest, str(event.remote_port), org, event.protocol,
+                num_str, ts, dest, str(event.remote_port), org, event.protocol,
                 style=style,
             )
 

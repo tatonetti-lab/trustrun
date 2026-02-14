@@ -71,11 +71,11 @@ def test_render_table_empty_state():
 
 def test_render_table_with_events():
     state = TuiState(policy=_make_policy(), pid=1234)
-    state.add_event(_make_event(hostname="api.allowed.com", org="Microsoft"))
+    state.add_event(_make_event(hostname="api.azure.com", org="Microsoft"))
     state.add_event(_make_event(hostname="pypi.org", org="Fastly"))
 
-    output = _render_to_string(state)
-    assert "api.allowed.com" in output
+    output = _render_to_string(state, width=120)
+    assert "api.azure.com" in output
     assert "pypi.org" in output
     assert "Microsoft" in output
 
